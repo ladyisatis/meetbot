@@ -23,7 +23,7 @@ Hosted by: {hosts}
 {locationIfSet}`;
 
 const locationIfSetTemplate = `${String.fromCodePoint(10145)} Location:
-{address}
+{addressMultiLine}
 {city}, {state} {zip}
 [[Google Maps]({googleMapsLink})] [[Apple Maps]({appleMapsLink})] [[Waze]({wazeLink})]`;
 
@@ -118,11 +118,11 @@ const amzLambdaHandler = exports.handler = async () => {
 
 					let location = locationIfSetTemplate
 						.replace('{address}', `${clean(event.venue.address_1)}` + 
-							('address_2' in event.venue ? `, ${clean(event.venue.address_2)}` +
-							('address_3' in event.venue ? `, ${clean(event.venue.address_3)}`)))
+							('address_2' in event.venue ? `, ${clean(event.venue.address_2)}` : '') +
+							('address_3' in event.venue ? `, ${clean(event.venue.address_3)}` : ''))
 						.replace('{addressMultiLine}', `${clean(event.venue.address_1)}` +
-							('address_2' in event.venue ? `\n${clean(event.venue.address_2)}` +
-							('address_3' in event.venue ? `\n${clean(event.venue.address_3)}`)))
+							('address_2' in event.venue ? `\n${clean(event.venue.address_2)}` : '') +
+							('address_3' in event.venue ? `\n${clean(event.venue.address_3)}` : ''))
 						.replace('{googleMapsLink}', `https://www.google.com/maps/dir/?api=1&destination=${coord}`)
 						.replace('{appleMapsLink}', `https://maps.apple.com/?daddr=${mapAddr}&ll=${coord}`)
 						.replace('{wazeLink}', `https://waze.com/ul?q=${mapAddr}&ll=${coord}&navigate=yes`)
@@ -132,23 +132,21 @@ const amzLambdaHandler = exports.handler = async () => {
 
 					post = post.replace('{locationIfSet}', location);
 				} else {
-					post = post.replace('{loctionIfSet}', '');
+					post = post.replace('{locationIfSet}', '');
 				}
 
-				let response = axios.post(
+				let response = await axios.post(
 					`https://api.telegram.org/bot${process.env.TELEGRAM_API_KEY}/sendMessage`,
-					{ 'params': {
-							"chat_id": process.env.TELEGRAM_CHANNEL_ID,
-							"text": post,
-							"parse_mode": "Markdown",
-							"disable_web_page_preview": "true"
-						} 
+					{ "chat_id": process.env.TELEGRAM_CHANNEL_ID,
+					  "text": post,
+					  "parse_mode": "Markdown",
+					  "disable_web_page_preview": "true" 
 					}
 				);
 
 				if(!response.data.ok) {
 					handlerResponse.statusCode = 500;
-					handlerResponse.body.push({ type: 'TELEGRAM_ERROR', error: response.data });
+					handlerResponse.body.push({ type: 'TELEGRAM_ERROR', error: response.data.result });
 				} else {
 					handlerResponse.body.push({ type: 'TELEGRAM_SUCCESS', result: response.data.result });
 				}
@@ -156,18 +154,18 @@ const amzLambdaHandler = exports.handler = async () => {
 		}
 	} catch(e) {
 		handlerResponse.statusCode = 500;
-		handlerResponse.body = JSON.stringify(e);
+		handlerResponse.body = JSON.stringify(e.response.data);
 	}
 
 	return handlerResponse;
 }
 
-exports.gcloudHandlerHTTP = (req, res) => {
+const gcloudHandlerHTTP = exports.gcloudHandlerHTTP = (req, res) => {
 	amzLambdaHandler().then(result => {
 		res.status(result.statusCode).send(result.body);
 	});
 }
 
-exports.gcloudHandlerPubSub = (data, context) => {
-	amzLambdaHandler().then(result => console.log(JSON.parse(result.body)));
+const gcloudHandlerPubSub = exports.gcloudHandlerPubSub = (data, context) => {
+	amzLambdaHandler().then(result => console.log(result.body));
 }
