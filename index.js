@@ -190,7 +190,7 @@ const amzLambdaHandler = exports.handler = async () => {
 					} else {
 						event_vars.venue.googleMapsLink = 'https://www.google.com/maps/dir?api=1&destination=' + encodeURIComponent(event.venue.address_1 + ', ' + event.venue.city + ', ' + event.venue.state + ' ' + event.venue.zip);
 						event_vars.venue.appleMapsLink = 'https://maps.apple.com/?q=' + encodeURIComponent(event.venue.address_1 + ', ' + event.venue.city + ', ' + event.venue.state + ' ' + event.venue.zip);
-						event_vars.venue.wazeLink = 'https://waze.com/ul?q=' + encodeURIComponent(event.venue.address_1 + ', ' + event.venue.city + ', ' + event.venue.state + ' ' + event.venue.zip) + '&ll=' + event.venue.lon + ',' + event.venue.lat + '&navigate=yes';
+						event_vars.venue.wazeLink = 'https://waze.com/ul?q=' + encodeURIComponent(event.venue.address_1 + ', ' + event.venue.city + ', ' + event.venue.state + ' ' + event.venue.zip) + '&ll=' + event.venue.lat + ',' + event.venue.lon + '&navigate=yes';
 					}
 				} else {
 					event_vars.venue = false;
