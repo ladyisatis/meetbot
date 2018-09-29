@@ -49,15 +49,16 @@ _Hosted By_: {{hosts}}
 
 {{summaryList.[0]}}{{#if summaryList.[1]}}
 
-{{summaryList.[1]}}{{#if summaryList.[2]}} [[More...]({{link}})]{{/if}}{{/if}}{{#if howToFindUs}}
+{{summaryList.[1]}}{{#if summaryList.[2]}} [More...]({{link}}){{/if}}{{/if}}{{#if howToFindUs}}
 
 *{{howToFindUs}}*{{/if}}{{#if venue}}
 
 ${String.fromCodePoint(10145)} Location:
 {{venue.name}}
 {{venue.addressMultiLine}}
-{{venue.city}}, {{venue.state}} {{venue.zip}}
-[[Google Maps]({{venue.googleMapsLink}})] [[Apple Maps]({{venue.appleMapsLink}})] [[Waze]({{venue.wazeLink}})] {{/if}}`;
+{{venue.city}}, {{venue.state}} {{venue.zip}}{{#if venue.phone}}
+{{venue.phone}}{{/if}}
+[Google Maps]({{venue.googleMapsLink}}) • [Apple Maps]({{venue.appleMapsLink}}) • [Waze]({{venue.wazeLink}}){{/if}}`;
 
 /* ----- NO EDITING BELOW THIS LINE ------ */
 
@@ -111,7 +112,7 @@ const amzLambdaHandler = exports.handler = async () => {
 				  'only': 'timezone' } 
 			}
 		)).data.timezone;
-
+		
 		const events = await axios.get(
 			`https://api.meetup.com/${process.env.MEETUP_GROUP_NAME}/events`,
 			{
@@ -135,8 +136,8 @@ const amzLambdaHandler = exports.handler = async () => {
 
 				event_vars.name = clean(event.name);
 				event_vars.series = 'series' in event && 'description' in event.series ? event.series.description : false;
-				event_vars.startTime = moment(event.time);
-				event_vars.endTime = moment(event.time + event.duration);
+				event_vars.startTime = moment(event.time).tz(event.group.timezone);
+				event_vars.endTime = moment(event.time + event.duration).tz(event.group.timezone);
 				event_vars.fromNow = event_vars.startTime.fromNow();
 				event_vars.lastUpdated = moment(event.updated);
 				event_vars.onWaitlistNum = event.waitlist_count;
@@ -144,7 +145,12 @@ const amzLambdaHandler = exports.handler = async () => {
 				event_vars.howToFindUs = 'how_to_find_us' in event && event.how_to_find_us !== "" ? clean(event.how_to_find_us) : false;
 				event_vars.comments = event.comment_count;
 				event_vars.link = event.short_link.replace('http://', 'https://');
-				event_vars.summaryList = event.plain_text_no_images_description.replace('\\n', '\n').split('\n\n');
+				event_vars.summaryList = event.plain_text_no_images_description
+					.replace('_', "\\_")
+					.replace('*', "\\*")
+					.replace('`', "\\`")
+					.replace('\\n', '\n')
+					.split('\n\n');
 
 				event_vars.hosts = event.event_hosts.map(host => clean(host.name)).join(', ');
 				event_vars.hostsList = [];
@@ -180,15 +186,16 @@ const amzLambdaHandler = exports.handler = async () => {
 					event_vars.venue.city = event.venue.city;
 					event_vars.venue.state = event.venue.state;
 					event_vars.venue.zip = event.venue.zip;
+					event_vars.venue.phone = 'phone' in event.venue ? event.venue.phone : false;
 					event_vars.venue.countryCode = event.venue.country;
 					event_vars.venue.countryName = event.venue.localized_country_name;
 
 					if(event_vars.venue.hasAddress && event.venue.repinned) {
-						event_vars.venue.googleMapsLink = 'https://www.google.com/maps/dir?api=1&destination=' + encodeURIComponent(event.venue.lat + ',' + event.venue.lon);
+						event_vars.venue.googleMapsLink = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(event.venue.lat + ',' + event.venue.lon);
 						event_vars.venue.appleMapsLink = 'https://maps.apple.com/?ll=' + event.venue.lat + ',' + event.venue.lon;
 						event_vars.venue.wazeLink = 'https://waze.com/ul?ll=' + event.venue.lat + ',' + event.venue.lon + '&navigate=yes';
 					} else {
-						event_vars.venue.googleMapsLink = 'https://www.google.com/maps/dir?api=1&destination=' + encodeURIComponent(event.venue.address_1 + ', ' + event.venue.city + ', ' + event.venue.state + ' ' + event.venue.zip);
+						event_vars.venue.googleMapsLink = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(event.venue.address_1 + ', ' + event.venue.city + ', ' + event.venue.state + ' ' + event.venue.zip);
 						event_vars.venue.appleMapsLink = 'https://maps.apple.com/?q=' + encodeURIComponent(event.venue.address_1 + ', ' + event.venue.city + ', ' + event.venue.state + ' ' + event.venue.zip);
 						event_vars.venue.wazeLink = 'https://waze.com/ul?q=' + encodeURIComponent(event.venue.address_1 + ', ' + event.venue.city + ', ' + event.venue.state + ' ' + event.venue.zip) + '&ll=' + event.venue.lat + ',' + event.venue.lon + '&navigate=yes';
 					}
@@ -199,8 +206,8 @@ const amzLambdaHandler = exports.handler = async () => {
 				if('rsvp_rules' in event && typeof event.rsvp_rules.close_time !== 'undefined' || typeof event.rsvp_rules.open_time !== 'undefined') {
 					event_vars.rsvp = {};
 					event_vars.rsvp.isClosed = event.rsvp_rules.closed;
-					event_vars.rsvp.closesAt = typeof event.rsvp_rules.close_time !== 'undefined' ? moment(event.rsvp_rules.close_time) : false;
-					event_vars.rsvp.opensAt = typeof event.rsvp_rules.open_time !== 'undefined' ? moment(event.rsvp_rules.open_time) : false;
+					event_vars.rsvp.closesAt = typeof event.rsvp_rules.close_time !== 'undefined' ? moment(event.rsvp_rules.close_time).tz(event.group.timezone) : false;
+					event_vars.rsvp.opensAt = typeof event.rsvp_rules.open_time !== 'undefined' ? moment(event.rsvp_rules.open_time).tz(event.group.timezone) : false;
 					event_vars.rsvp.refundPolicy = clean(event.rsvp_rules.refund_policy.notes);
 				} else {
 					event_vars.rsvp = false;
@@ -225,6 +232,8 @@ const amzLambdaHandler = exports.handler = async () => {
 					tgParams.parse_mode = 'Markdown';
 					tgParams.disable_web_page_preview = 'true';
 				}
+				
+				handlerResponse.debug = {"name": "telegram", "params": tgParams};
 
 				let response = await axios.post(tgAPIURL, tgParams);
 
@@ -238,7 +247,7 @@ const amzLambdaHandler = exports.handler = async () => {
 		}
 	} catch(e) {
 		handlerResponse.statusCode = 500;
-		handlerResponse.body = e;
+		handlerResponse.body = 'response' in e? e.response.data : e.stack;
 	}
 
 	return handlerResponse;
